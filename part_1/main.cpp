@@ -6,7 +6,7 @@
 
 using namespace std;
 
-// Monotone‐chain convex hull
+// Convex hull
 vector<Point> convexHull(vector<Point>& pts) {
     sort(pts.begin(), pts.end());           // uses Point::operator<
     int n = pts.size(), k = 0;
@@ -50,13 +50,29 @@ int main() {
     int n;
     if (!(cin >> n)) return 0;
     vector<Point> pts(n);
+    char comma;
+
     for (int i = 0; i < n; ++i) {
-        cin >> pts[i].x >> pts[i].y;
+        cin >> pts[i].x >> comma >> pts[i].y;
     }
 
     auto hull = convexHull(pts);
     double area = polygonArea(hull);
 
     cout << "Area = " << area << "\n";
+
+    // while(cin >> n) {
+    //     if (n <= 0) break; // Exit on non-positive input
+    //     vector<Point> pts(n);
+    //     for (int i = 0; i < n; ++i) {
+    //         cin >> pts[i].x >> pts[i].y;
+    //     }
+    //     auto hull = convexHull(pts);
+    //     double area = polygonArea(hull);
+
+    //     cout << "Area = " << area << "\n";
+    // }
+
+
     return 0;
 }

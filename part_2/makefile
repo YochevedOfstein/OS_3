@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall -Wextra 
+CXXFLAGS = -std=c++11 -Wall -Wextra -pg
 
 .PHONY: all clean
 
@@ -12,5 +12,5 @@ main.o: main.cpp Point.hpp
 	$(CXX) $(CXXFLAGS) -c main.cpp
 
 clean:
-	rm -f CH *.o
+	rm -f CH *.o gmon.out profile.txt
 
