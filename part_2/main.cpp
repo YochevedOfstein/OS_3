@@ -5,8 +5,11 @@
 #include <cmath>
 #include <deque>
 #include <list>
+#include <chrono>
 
 using namespace std;
+using HighResClock = std::chrono::high_resolution_clock;
+using TimePoint = HighResClock::time_point;
 
 // Original Convex hull
 vector<Point> convexHull(vector<Point>& pts) {
@@ -125,15 +128,50 @@ int main() {
         cin >> pts[i].x >> comma >> pts[i].y;
     }
 
+    TimePoint t1 = HighResClock::now();
     auto hull = convexHull(pts);  // Original convex hull
+    TimePoint t2 = HighResClock::now();
+
+    TimePoint t3 = HighResClock::now();
     auto hull1 = convexHullList(pts);   // List-based convex hull
+    TimePoint t4 = HighResClock::now();
+
+    TimePoint t5 = HighResClock::now();
     auto hull2 = convexHullDeque(pts);  // Deque-based convex hull
+    TimePoint t6 = HighResClock::now();
 
     // Compute area once (they should match)
     double area = polygonArea(hull1);
 
     // Report
     cout << "Area: " << area << "\n";
+
+    // long dt1 = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
+    // long dt2 = chrono::duration_cast<chrono::milliseconds>(t4 - t3).count();
+    // long dt3 = chrono::duration_cast<chrono::milliseconds>(t6 - t5).count();
+
+    double dt1 = chrono::duration<double, milli>(t2 - t1).count();
+    double dt2 = chrono::duration<double, milli>(t4 - t3).count();
+    double dt3 = chrono::duration<double, milli>(t6 - t5).count();
+
+    cout << "Time for original convex hull: " << dt1 << " ms\n";
+    cout << "Time for list-based convex hull: " << dt2 << " ms\n";
+    cout << "Time for deque-based convex hull: " << dt3 << " ms\n";
+
+    // while(cin >> n) {
+    //     if (n <= 0) break; // Exit on non-positive input
+    //     vector<Point> pts(n);
+    //     for (int i = 0; i < n; ++i) {
+    //         cin >> pts[i].x >> comma >> pts[i].y;
+    //     }
+    //     auto hull = convexHull(pts);  // Original convex hull
+    //     auto hull1 = convexHullList(pts);   // List-based convex hull
+    //     auto hull2 = convexHullDeque(pts);  // Deque-based convex hull
+    //     double area = polygonArea(hull);
+
+    //     cout << "Area = " << area << "\n";
+    // }
+
 
 
     return 0;
