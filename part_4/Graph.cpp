@@ -14,6 +14,18 @@ void Graph::removePoint(const Point& p) {
     points_.erase(std::remove(points_.begin(), points_.end(), p), points_.end());
 }
 
+void Graph::addEdge(const Point& p1, const Point& p2) {
+    auto e = std::make_pair(p1, p2);
+    if (std::find(edges_.begin(), edges_.end(), e) == edges_.end()) {
+        edges_.push_back(e);
+    }
+}
+
+void Graph::removeEdge(const Point& p1, const Point& p2) {
+    auto e = std::make_pair(p1, p2);
+    edges_.erase(std::remove(edges_.begin(), edges_.end(), e), edges_.end());
+}
+
 std::vector<Point> Graph::convexHull() const {
     std::vector<Point> pts = points_;
     return ComputeConvexHull(pts);

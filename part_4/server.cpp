@@ -97,6 +97,28 @@ int handleClient(int clientSocket) {
             in >> x >> comma >> y;
             graph.removePoint(Point{x, y});
 
+        } else if (cmd == "AddEdge") {
+            double x1, y1, x2, y2; char comma1, comma2;
+            in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
+            if (comma1 != ',' || comma2 != ',') {
+                std::ostringstream err;
+                err << "Invalid edge format: " << line << "\n";
+                sendAll(clientSocket, err.str());
+                continue;
+            }
+            graph.addEdge(Point{x1, y1}, Point{x2, y2});
+
+        } else if (cmd == "RemoveEdge") {
+            double x1, y1, x2, y2; char comma1, comma2;
+            in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
+            if (comma1 != ',' || comma2 != ',') {
+                std::ostringstream err;
+                err << "Invalid edge format: " << line << "\n";
+                sendAll(clientSocket, err.str());
+                continue;
+            }
+            graph.removeEdge(Point{x1, y1}, Point{x2, y2});
+
         } else {
             std::cerr << "Unknown command: " << cmd << "\n";
             sendAll(clientSocket, "Unknown command\n");
