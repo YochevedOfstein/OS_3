@@ -3,14 +3,14 @@ CXXFLAGS = -std=c++11 -Wall -Wextra -pg
 
 .PHONY: all clean
 
-all: CH
+SRCS = main.cpp Graph.cpp
+TARGETS = CH_PROGRAM
 
-CH: main.o
-	$(CXX) $(CXXFLAGS) -o CH main.o
+all: $(TARGETS)
 
-main.o: main.cpp Point.hpp
-	$(CXX) $(CXXFLAGS) -c main.cpp
+$(TARGETS): $(SRCS)
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
 clean:
-	rm -f CH *.o gmon.out profile.txt
+	rm -f $(TARGETS) *.o gmon.out
 
