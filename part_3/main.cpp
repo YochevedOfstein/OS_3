@@ -30,7 +30,10 @@ int main() {
                 if (line.empty()) { i--; continue; }
                 double x, y; char comma;
                 istringstream ptin(line);
-                ptin >> x >> comma >> y;
+                if (!(ptin >> x >> comma >> y) || comma != ',') {
+                    cerr << "Invalid point format: " << line << "\n";
+                    break;
+                }
                 pts.emplace_back(Point{x,y});
             }
             graph.newGraph(pts);
@@ -38,9 +41,8 @@ int main() {
         } else if (cmd == "CH") {
             auto hull = graph.convexHull();
             double area = graph.area();
-            char comma;
             for (auto &p : hull)
-                cout << p.x << comma << p.y << std::endl;
+                cout << p.x << "," << p.y << std::endl;
             cout << "Area = " << area << std::endl;
 
         } else if (cmd == "NewPoint") {
@@ -55,6 +57,7 @@ int main() {
 
         } else {
             cerr << "Unknown command: " << cmd << "\n";
+            break;
         }
     }
     return 0;
