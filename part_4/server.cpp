@@ -54,19 +54,29 @@ int handleClient(int clientSocket) {
         if (cmd == "NewGraph") {
             int n; in >> n;
             std::vector<Point> pts;
+            bool readOk = true;
 
             for (int i = 0; i < n; ++i) {
-                if (recvLine(clientSocket, line)) break;
+                if (!recvLine(clientSocket, line)){
+                    readOk = false;
+                    break;
+                } 
                 if (line.empty()) { i--; continue; }
                 double x, y; char comma;
                 std::istringstream ptin(line);
                 if (!(ptin >> x >> comma >> y) || comma != ',') {
-                    std::cerr << "Invalid point format: " << line << "\n";
+                    std::ostringstream err;
+                    err << "Invalid point format: " << line << "\n";
+                    readOk = false;
+                    sendAll(clientSocket, err.str());
                     break;
                 }
                 pts.emplace_back(Point{x,y});
             }
-            graph.newGraph(pts);
+            if(readOk){
+                graph.newGraph(pts);
+            }
+            continue;
 
         } else if (cmd == "CH") {
             auto hull = graph.convexHull();
