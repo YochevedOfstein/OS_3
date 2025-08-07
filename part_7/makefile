@@ -6,7 +6,7 @@ CXXFLAGS = -std=c++11 -Wall -Wextra -pg
 SRCS_SERVER = server.cpp Graph.cpp 
 TARGETS_SERVER = server
 
-SRCS_CLIENT = client.cpp
+SRCS_CLIENT = client.cpp Graph.cpp
 TARGETS_CLIENT = client
 
 all: $(TARGETS_SERVER) $(TARGETS_CLIENT)

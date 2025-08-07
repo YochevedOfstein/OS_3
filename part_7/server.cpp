@@ -7,9 +7,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <mutex>
+#include <thread>
 
-// static constexpr int BUFFER_SIZE = 1024;
 static constexpr int PORT = 9034;
+
+Graph graph;
+std::mutex graphMutex;
 
 bool recvLine(int fd, std::string& line) {
     line.clear();
@@ -38,11 +42,7 @@ void sendAll(int fd, const std::string& message) {
 }
 
 
-int handleClient(int clientSocket) {
-    std::ios::sync_with_stdio(false);
-    std::cin.tie(nullptr);
-
-    Graph graph;
+void handleClient(int clientSocket) {
     std::string line;
 
     while (recvLine(clientSocket, line)) {
@@ -74,14 +74,20 @@ int handleClient(int clientSocket) {
                 pts.emplace_back(Point{x,y});
             }
             if(readOk){
+                std::lock_guard<std::mutex> lock(graphMutex);
                 graph.newGraph(pts);
                 sendAll(clientSocket, "New graph created\n");
             }
             continue;
 
         } else if (cmd == "CH") {
-            auto hull = graph.convexHull();
-            double area = graph.area();
+            std::vector<Point> hull;
+            double area;
+            {
+                std::lock_guard<std::mutex> lock(graphMutex);
+                hull = graph.convexHull();
+                area = graph.area();
+            }
             std::ostringstream out;
             for (auto &p : hull)
                 out << p.x << "," << p.y << std::endl;
@@ -91,7 +97,10 @@ int handleClient(int clientSocket) {
         } else if (cmd == "NewPoint") {
             double x, y; char comma;
             in >> x >> comma >> y;
-            graph.addPoint(Point{x, y});
+            {
+                std::lock_guard<std::mutex> lock(graphMutex);
+                graph.addPoint(Point{x, y});
+            }
             std::ostringstream response;
             response << "Point added: " << x << "," << y << "\n";
             sendAll(clientSocket, response.str());
@@ -99,13 +108,10 @@ int handleClient(int clientSocket) {
         } else if (cmd == "RemovePoint") {
             double x, y; char comma;
             in >> x >> comma >> y;
-            if (comma != ',') {
-                std::ostringstream err;
-                err << "Invalid point format: " << line << "\n";
-                sendAll(clientSocket, err.str());
-                break;
+            {
+                std::lock_guard<std::mutex> lock(graphMutex);
+                graph.removePoint(Point{x, y});
             }
-            graph.removePoint(Point{x, y});
             std::ostringstream response;
             response << "Point removed: " << x << "," << y << "\n";
             sendAll(clientSocket, response.str());
@@ -114,13 +120,10 @@ int handleClient(int clientSocket) {
         } else if (cmd == "AddEdge") {
             double x1, y1, x2, y2; char comma1, comma2;
             in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
-            if (comma1 != ',' || comma2 != ',') {
-                std::ostringstream err;
-                err << "Invalid edge format: " << line << "\n";
-                sendAll(clientSocket, err.str());
-                continue;
+            {
+                std::lock_guard<std::mutex> lock(graphMutex);
+                 graph.addEdge(Point{x1, y1}, Point{x2, y2});
             }
-            graph.addEdge(Point{x1, y1}, Point{x2, y2});
             std::ostringstream response;
             response << "Edge added: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
             sendAll(clientSocket, response.str());
@@ -128,24 +131,20 @@ int handleClient(int clientSocket) {
         } else if (cmd == "RemoveEdge") {
             double x1, y1, x2, y2; char comma1, comma2;
             in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
-            if (comma1 != ',' || comma2 != ',') {
-                std::ostringstream err;
-                err << "Invalid edge format: " << line << "\n";
-                sendAll(clientSocket, err.str());
-                continue;
+            {
+                std::lock_guard<std::mutex> lock(graphMutex);
+                graph.removeEdge(Point{x1, y1}, Point{x2, y2});
             }
-            graph.removeEdge(Point{x1, y1}, Point{x2, y2});
             std::ostringstream response;
             response << "Edge removed: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
             sendAll(clientSocket, response.str());
 
         } else {
-            std::cerr << "Unknown command: " << cmd << "\n";
             sendAll(clientSocket, "Unknown command\n");
             break;
         }
     }
-    return 0;
+    close(clientSocket);
 }
 
 int main() {
@@ -180,11 +179,8 @@ int main() {
             continue;
         }
         
-        std::cout << "Client connected.\n";
-        handleClient(clientSocket);
-        close(clientSocket);
-        std::cout << "Client disconnected.\n";
+        std::thread t(handleClient, clientSocket);
+        t.detach(); // Detach the thread to handle the client independently
     }
-
 
 }
