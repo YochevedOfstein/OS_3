@@ -18,6 +18,9 @@ public:
     std::vector<Point> convexHull() const;
     double area() const;
 
+    const std::vector<Point>& getPoints() const { return points_; }
+    const std::vector<std::pair<Point, Point>>& getEdges() const { return edges_; }
+
 private:
     std::vector<Point> points_;
     std::vector<std::pair<Point, Point>> edges_;
@@ -25,4 +28,3 @@ private:
     double ComputeArea(const std::vector<Point>& P) const;
 
 };
-

@@ -91,11 +91,24 @@ int handleClient(int clientSocket) {
             double x, y; char comma;
             in >> x >> comma >> y;
             graph.addPoint(Point{x, y});
+            std::ostringstream response;
+            response << "Point added: " << x << "," << y << "\n";
+            sendAll(clientSocket, response.str());
 
         } else if (cmd == "RemovePoint") {
             double x, y; char comma;
             in >> x >> comma >> y;
+            if (comma != ',') {
+                std::ostringstream err;
+                err << "Invalid point format: " << line << "\n";
+                sendAll(clientSocket, err.str());
+                break;
+            }
             graph.removePoint(Point{x, y});
+            std::ostringstream response;
+            response << "Point removed: " << x << "," << y << "\n";
+            sendAll(clientSocket, response.str());
+            
 
         } else if (cmd == "AddEdge") {
             double x1, y1, x2, y2; char comma1, comma2;
@@ -107,6 +120,9 @@ int handleClient(int clientSocket) {
                 continue;
             }
             graph.addEdge(Point{x1, y1}, Point{x2, y2});
+            std::ostringstream response;
+            response << "Edge added: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
+            sendAll(clientSocket, response.str());
 
         } else if (cmd == "RemoveEdge") {
             double x1, y1, x2, y2; char comma1, comma2;
@@ -118,6 +134,9 @@ int handleClient(int clientSocket) {
                 continue;
             }
             graph.removeEdge(Point{x1, y1}, Point{x2, y2});
+            std::ostringstream response;
+            response << "Edge removed: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
+            sendAll(clientSocket, response.str());
 
         } else {
             std::cerr << "Unknown command: " << cmd << "\n";

@@ -32,7 +32,8 @@ std::vector<Point> Graph::convexHull() const {
 }
 
 double Graph::area() const {
-    return ComputeArea(points_);
+    auto hull = convexHull();
+    return ComputeArea(hull);
 }
 std::vector<Point> Graph::ComputeConvexHull(std::vector<Point>& pts) const {
     sort(pts.begin(), pts.end());           // uses Point::operator<
