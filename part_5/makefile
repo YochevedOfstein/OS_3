@@ -1,15 +1,18 @@
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wextra -pg
+AR = ar rcs
 
 .PHONY: all clean
 
-SRCS = reactor.cpp
-TARGETS = REACTOR
+LIBS = libreactor.a
 
-all: $(TARGETS)
+all: $(LIBS)
 
-$(TARGETS): $(SRCS)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+reactor.o: reactor.cpp reactor.hpp
+	$(CXX) $(CXXFLAGS) -c $<
+
+$(LIBS): reactor.o
+	$(AR) $@ $^
 
 clean:
-	rm -f $(TARGETS) *.o
+	rm -f  *.o $(LIBS)
