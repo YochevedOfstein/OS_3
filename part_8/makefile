@@ -11,7 +11,10 @@ all: $(LIBS)
 reactor.o: reactor.cpp reactor.hpp
 	$(CXX) $(CXXFLAGS) -c $<
 
-$(LIBS): reactor.o
+proactor.o: proactor.cpp proactor.hpp
+	$(CXX) $(CXXFLAGS) -c $<
+
+$(LIBS): reactor.o proactor.o
 	$(AR) $@ $^
 
 clean:

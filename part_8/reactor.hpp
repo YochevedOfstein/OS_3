@@ -1,5 +1,4 @@
 #pragma once
-#include <pthread.h>
 
 
 typedef void (*reactorFunc)(int fd);
@@ -14,8 +13,3 @@ int removeFdFromReactor(void *reactor, int fd);
 
 int stopReactor(void *reactor);
 
-typedef void* (*proactorFunc) (int sockfd);
-
-pthread_t startProactor(int sockfd, proactorFunc threadfunc);
-
-int stopProactor(pthread_t tid);
