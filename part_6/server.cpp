@@ -12,7 +12,7 @@
 
 
 static constexpr int PORT = 9034;
-static std::unordered_map<int, Graph> graphs;
+static Graph gGraph;
 static void* gReactor = nullptr;
 
 bool recvLine(int fd, std::string& line) {
@@ -48,11 +48,9 @@ void onClientReadable(int fd) {
     if (!recvLine(fd, line)){
         removeFdFromReactor(gReactor, fd);
         close(fd);
-        graphs.erase(fd);
         std::cout << "Client disconnected.\n";
     }
 
-    auto& graph = graphs[fd];
     std::string cmd;
     std::istringstream in(line);
     in >> cmd;
@@ -74,12 +72,12 @@ void onClientReadable(int fd) {
             }
             pts.emplace_back(Point{x,y});
         }
-        graph.newGraph(pts);
+        gGraph.newGraph(pts);
         sendAll(fd, "New Graph created\n");
 
     } else if (cmd == "CH") {
-        auto hull = graph.convexHull();
-        double area = graph.area();
+        auto hull = gGraph.convexHull();
+        double area = gGraph.area();
         std::ostringstream out;
         for (auto &p : hull)
             out << p.x << "," << p.y << std::endl;
@@ -89,7 +87,7 @@ void onClientReadable(int fd) {
     } else if (cmd == "NewPoint") {
         double x, y; char comma;
         in >> x >> comma >> y;
-        graph.addPoint(Point{x, y});
+        gGraph.addPoint(Point{x, y});
         std::ostringstream response;
         response << "Point added: " << x << "," << y << "\n";
         sendAll(fd, response.str());
@@ -97,7 +95,7 @@ void onClientReadable(int fd) {
     } else if (cmd == "RemovePoint") {
         double x, y; char comma;
         in >> x >> comma >> y;
-        graph.removePoint(Point{x, y});
+        gGraph.removePoint(Point{x, y});
         std::ostringstream response;
         response << "Point removed: " << x << "," << y << "\n";
         sendAll(fd, response.str());
@@ -105,7 +103,7 @@ void onClientReadable(int fd) {
     } else if (cmd == "AddEdge") {
         double x1, y1, x2, y2; char comma1, comma2;
         in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
-        graph.addEdge(Point{x1, y1}, Point{x2, y2});
+        gGraph.addEdge(Point{x1, y1}, Point{x2, y2});
         std::ostringstream response;
         response << "Edge added: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
         sendAll(fd, response.str());
@@ -113,7 +111,7 @@ void onClientReadable(int fd) {
     } else if (cmd == "RemoveEdge") {
         double x1, y1, x2, y2; char comma1, comma2;
         in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
-        graph.removeEdge(Point{x1, y1}, Point{x2, y2});
+        gGraph.removeEdge(Point{x1, y1}, Point{x2, y2});
         std::ostringstream response;
         response << "Edge removed: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
         sendAll(fd, response.str());
