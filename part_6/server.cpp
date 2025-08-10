@@ -13,6 +13,7 @@
 
 static constexpr int PORT = 9034;
 static std::unordered_map<int, Graph> graphs;
+static void* gReactor = nullptr;
 
 bool recvLine(int fd, std::string& line) {
     line.clear();
@@ -32,7 +33,7 @@ void sendAll(int fd, const std::string& message) {
     while(msgLength > 0) {
         ssize_t n = send(fd, msg, msgLength, 0);
         if (n < 0) {
-            std::cerr << "Error sending data\n";
+            // std::cerr << "Error sending data\n";
             return; // Handle error appropriately
         }
         msg += n;
@@ -45,7 +46,7 @@ void onClientReadable(int fd) {
 
     std::string line;
     if (!recvLine(fd, line)){
-        removeFdFromReactor(nullptr, fd);
+        removeFdFromReactor(gReactor, fd);
         close(fd);
         graphs.erase(fd);
         std::cout << "Client disconnected.\n";
@@ -72,8 +73,9 @@ void onClientReadable(int fd) {
                 continue;
             }
             pts.emplace_back(Point{x,y});
-            sendAll(fd, "New Graph created\n");
         }
+        graph.newGraph(pts);
+        sendAll(fd, "New Graph created\n");
 
     } else if (cmd == "CH") {
         auto hull = graph.convexHull();
@@ -128,7 +130,7 @@ void onAccept(int listenFd){
         return;
     }
     // Add the client socket to the reactor
-    addFdToReactor(nullptr, clientSocket, onClientReadable);
+    addFdToReactor(gReactor, clientSocket, onClientReadable);
 }
 
 int main() {
@@ -155,13 +157,13 @@ int main() {
         close(listenfd);
         return 1;
     }
-    
-    void* reactor = startReactor();
-    addFdToReactor(reactor, listenfd, onAccept);
+
+    gReactor = startReactor();
+    addFdToReactor(gReactor, listenfd, onAccept);
 
     for(;;) pause(); // Keep the server running
 
-    stopReactor(reactor);
+    stopReactor(gReactor);
     close(listenfd);
     return 0;
 }
