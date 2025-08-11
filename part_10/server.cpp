@@ -10,12 +10,22 @@
 #include <unistd.h>
 #include <mutex>
 #include <pthread.h>
+#include <signal.h>
 
 
 static constexpr int PORT = 9034;
 
 Graph graph;
 std::mutex graphMutex;
+
+static pthread_mutex_t gMonMtx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t gMonCv = PTHREAD_COND_INITIALIZER;
+
+static double gLastArea = 0.0;
+static bool gHasUpdated = false;
+static bool gAtLeast100 = false;
+static bool gShuttingDown = false;
+
 
 bool recvLine(int fd, std::string& line) {
     line.clear();
@@ -41,6 +51,31 @@ void sendAll(int fd, const std::string& message) {
         msg += n;
         msgLength -= n;
     }
+}
+
+static void* monitorArea(void*){
+    pthread_mutex_lock(&gMonMtx);
+    while (!gShuttingDown) {
+        while (!gHasUpdated && !gShuttingDown)
+            pthread_cond_wait(&gMonCv, &gMonMtx);
+
+        if (gShuttingDown) break;
+
+        double a = gLastArea;
+        bool nowAtLeast100 = (a >= 100.0);
+
+        if (nowAtLeast100 && !gAtLeast100) {
+            std::cout << "At Least 100 units belongs to CH\n";
+            gAtLeast100 = true;
+        } else if (!nowAtLeast100 && gAtLeast100) {
+            std::cout << "At Least 100 units no longer belongs to CH\n";
+            gAtLeast100 = false;
+        }
+
+        gHasUpdated = false; // consume update
+    }
+    pthread_mutex_unlock(&gMonMtx);
+    return nullptr;
 }
 
 
@@ -94,6 +129,11 @@ static void* handleClient(int clientSocket) {
             for (auto &p : hull)
                 out << p.x << "," << p.y << std::endl;
             out << "Area = " << area << std::endl;
+            pthread_mutex_lock(&gMonMtx);
+            gLastArea = area;
+            gHasUpdated = true;
+            pthread_cond_signal(&gMonCv);
+            pthread_mutex_unlock(&gMonMtx);
             sendAll(clientSocket, out.str());
 
         } else if (cmd == "NewPoint") {
@@ -175,6 +215,9 @@ int main() {
         return 1;
     }
 
+    pthread_t monTid;
+    pthread_create(&monTid, nullptr, &monitorArea, nullptr);
+
     pthread_t acceptTid = startProactor(listenfd, &handleClient);
     if (!acceptTid) {
         std::cerr << "Error starting proactor thread\n";
@@ -182,9 +225,19 @@ int main() {
         return 1;
     }
 
-    pause();
-    stopProactor(acceptTid);
-    close(listenfd);
-    return 0;
+    for(;;){
+        pause(); // Wait indefinitely
+    }
+
+    // pthread_mutex_lock(&gMonMtx);
+    // gShuttingDown = true;
+    // pthread_cond_signal(&gMonCv);
+    // pthread_mutex_unlock(&gMonMtx);
+
+    // stopProactor(acceptTid);
+    // pthread_join(monTid, nullptr);
+    // pause();
+    // close(listenfd);
+    // return 0;
 
 }
