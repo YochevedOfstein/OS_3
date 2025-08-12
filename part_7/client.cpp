@@ -29,18 +29,18 @@ bool sendLine(int sock, const std::string& line) {
 
 // Receive up to bufSize-1 bytes, null-terminate, and print
 bool recvAndPrint(int sock) {
-    char buf[4096];
-    ssize_t recvd = recv(sock, buf, sizeof(buf)-1, 0);
-    if (recvd < 0) {
-        perror("recv");
-        return false;
+    std::string line;
+    line.reserve(256);
+    char c;
+    for(;;) {
+        ssize_t n = recv(sock, &c, 1, 0);
+        if (n < 0) { perror("recv"); return false; }
+        if (n == 0) { std::cout<<"<server closed>\n"; return false; }
+        line.push_back(c);
+        if (c == '\n') break;
+        if (c == '\r') line.push_back(c);
     }
-    if (recvd == 0) {
-        std::cout << "Server closed connection\n";
-        return false;
-    }
-    buf[recvd] = '\0';
-    std::cout << buf;
+    std::cout << line;
     return true;
 }
 
@@ -76,11 +76,11 @@ int main() {
         // Send the header line
         if (!sendLine(sock, line)) break;
 
-        // If it's NewGraph, read & send the next n lines in a row
-        if (cmd == "NewGraph") {
+        // If it's Newgraph, read & send the next n lines in a row
+        if (cmd == "Newgraph") {
             int n;
             if (!(iss >> n)) {
-                std::cerr << "Syntax: NewGraph <n>\n";
+                std::cerr << "Syntax: Newgraph <n>\n";
                 continue;
             }
             for (int i = 0; i < n; ++i) {

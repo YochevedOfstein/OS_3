@@ -22,12 +22,18 @@ bool sendLine(int sock, const std::string& line) {
 }
 
 bool recvAndPrint(int sock) {
-    char buf[4096];
-    ssize_t n = recv(sock, buf, sizeof(buf)-1, 0);
-    if (n < 0) { perror("recv"); return false; }
-    if (n == 0) { std::cout<<"<server closed>\n"; return false; }
-    buf[n]=0;
-    std::cout<<buf;
+    std::string line;
+    line.reserve(256);
+    char c;
+    for(;;) {
+        ssize_t n = recv(sock, &c, 1, 0);
+        if (n < 0) { perror("recv"); return false; }
+        if (n == 0) { std::cout<<"<server closed>\n"; return false; }
+        line.push_back(c);
+        if (c == '\n') break;
+        if (c == '\r') line.push_back(c);
+    }
+    std::cout << line;
     return true;
 }
 
@@ -53,7 +59,7 @@ int main(){
         // if NewGraph, read & send the next n point‐lines
         std::istringstream iss(line);
         std::string cmd; iss>>cmd;
-        if (cmd=="NewGraph"){
+        if (cmd=="Newgraph"){
             int n; iss>>n;
             for(int i=0;i<n;++i){
                 std::getline(std::cin,line);

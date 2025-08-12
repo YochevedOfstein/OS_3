@@ -51,7 +51,7 @@ void handleClient(int clientSocket) {
         std::string cmd;
         in >> cmd;
 
-        if (cmd == "NewGraph") {
+        if (cmd == "Newgraph") {
             int n; in >> n;
             std::vector<Point> pts;
             bool readOk = true;
@@ -81,22 +81,23 @@ void handleClient(int clientSocket) {
             continue;
 
         } else if (cmd == "CH") {
-            std::vector<Point> hull;
             double area;
             {
                 std::lock_guard<std::mutex> lock(graphMutex);
-                hull = graph.convexHull();
                 area = graph.area();
             }
             std::ostringstream out;
-            for (auto &p : hull)
-                out << p.x << "," << p.y << std::endl;
             out << "Area = " << area << std::endl;
             sendAll(clientSocket, out.str());
 
-        } else if (cmd == "NewPoint") {
+        } else if (cmd == "Newpoint") {
             double x, y; char comma;
             in >> x >> comma >> y;
+            if (comma != ',') {
+                sendAll(clientSocket, "Invalid point format\n");
+                continue;
+            }
+
             {
                 std::lock_guard<std::mutex> lock(graphMutex);
                 graph.addPoint(Point{x, y});
@@ -105,9 +106,14 @@ void handleClient(int clientSocket) {
             response << "Point added: " << x << "," << y << "\n";
             sendAll(clientSocket, response.str());
 
-        } else if (cmd == "RemovePoint") {
+        } else if (cmd == "Removepoint") {
             double x, y; char comma;
             in >> x >> comma >> y;
+            if (comma != ',') {
+                sendAll(clientSocket, "Invalid point format\n");
+                continue;
+            }
+
             {
                 std::lock_guard<std::mutex> lock(graphMutex);
                 graph.removePoint(Point{x, y});
@@ -117,7 +123,7 @@ void handleClient(int clientSocket) {
             sendAll(clientSocket, response.str());
             
 
-        } else if (cmd == "AddEdge") {
+        } else if (cmd == "Addedge") {
             double x1, y1, x2, y2; char comma1, comma2;
             in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
             {
@@ -128,7 +134,7 @@ void handleClient(int clientSocket) {
             response << "Edge added: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
             sendAll(clientSocket, response.str());
 
-        } else if (cmd == "RemoveEdge") {
+        } else if (cmd == "Removeedge") {
             double x1, y1, x2, y2; char comma1, comma2;
             in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
             {

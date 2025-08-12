@@ -8,24 +8,24 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
-#include <unordered_map>
+#include <map>
+#include <signal.h>
 
 
 static constexpr int PORT = 9034;
 static Graph gGraph;
-static void* gReactor = nullptr;
 
-bool recvLine(int fd, std::string& line) {
-    line.clear();
-    char c;
-    while (true) {
-        ssize_t n = recv(fd, &c, 1, 0);
-        if (n <= 0) return false; // Error or connection closed
-        if (c == '\n') break;
-        if (c != '\r') line.push_back(c);
-    }
-    return true; // Successfully received a line
-}
+struct ConnState {
+    std::string inbuf;            // bytes accumulated until '\n'
+    int expect_points = 0;        // >0 means NewGraph is waiting for N point lines
+    std::vector<Point> pending;   // temp points for NewGraph
+};
+
+static void* gReactor = nullptr;
+static std::map<int, ConnState> gConns;
+
+static volatile sig_atomic_t gStopFlag = 0;
+
 
 void sendAll(int fd, const std::string& message) {
     const char* msg = message.data();
@@ -33,8 +33,8 @@ void sendAll(int fd, const std::string& message) {
     while(msgLength > 0) {
         ssize_t n = send(fd, msg, msgLength, 0);
         if (n < 0) {
-            // std::cerr << "Error sending data\n";
-            return; // Handle error appropriately
+            std::cerr << "Error sending data\n";
+            return;
         }
         msg += n;
         msgLength -= n;
@@ -42,109 +42,153 @@ void sendAll(int fd, const std::string& message) {
 }
 
 
-void onClientReadable(int fd) {
+static std::string processLine(ConnState& st, const std::string& rawLine) {
+    std::string line = rawLine;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
 
-    std::string line;
-    if (!recvLine(fd, line)){
-        removeFdFromReactor(gReactor, fd);
-        close(fd);
-        std::cout << "Client disconnected.\n";
+    // If we're in the middle of NewGraph, treat the line as a point.
+    if (st.expect_points > 0) {
+        double x, y; char comma;
+        std::istringstream ptin(line);
+        if (!(ptin >> x >> comma >> y) || comma != ',' || (ptin >> std::ws, !ptin.eof())) {
+            std::ostringstream err; err << "Invalid point format: " << line << "\n";
+            st.expect_points = 0; st.pending.clear();
+            return err.str();
+        }
+        st.pending.push_back(Point{x, y});
+        if (--st.expect_points == 0) {
+            gGraph.newGraph(st.pending);
+            st.pending.clear();
+            return "New graph created\n";
+        }
+        return ""; // Not done yet; wait for more point lines (no reply yet)
     }
 
-    std::string cmd;
+    // Otherwise parse a command line
+    if (line.empty()) return "";
+
     std::istringstream in(line);
-    in >> cmd;
+    std::string cmd; in >> cmd;
 
-    if (cmd == "NewGraph") {
-        int n; in >> n;
-        std::vector<Point> pts;
-
-        for (int i = 0; i < n; ++i) {
-            recvLine(fd, line);
-            double x, y; char comma;
-            std::istringstream ptin(line);
-            ptin >> x >> comma >> y;
-            if (ptin.fail() || comma != ',') {
-                std::ostringstream err;
-                err << "Invalid point format: " << line << "\n";
-                sendAll(fd, err.str());
-                continue;
-            }
-            pts.emplace_back(Point{x,y});
+    if (cmd == "Newgraph") {
+        int n; 
+        if (!(in >> n) || n < 0 || (in >> std::ws, !in.eof())) {
+            return "Invalid Newgraph count\n";
         }
-        gGraph.newGraph(pts);
-        sendAll(fd, "New Graph created\n");
+        st.expect_points = n;
+        st.pending.clear();
+        if (n == 0) {
+            gGraph.newGraph({});
+            st.expect_points = 0;
+            return "New graph created\n";
+        }
+        return ""; // wait for the n point lines
 
     } else if (cmd == "CH") {
-        auto hull = gGraph.convexHull();
         double area = gGraph.area();
         std::ostringstream out;
-        for (auto &p : hull)
-            out << p.x << "," << p.y << std::endl;
-        out << "Area = " << area << std::endl;
-        sendAll(fd, out.str());
+        out << "Area = " << area << "\n";
+        return out.str();
 
-    } else if (cmd == "NewPoint") {
+    } else if (cmd == "Newpoint") {
         double x, y; char comma;
-        in >> x >> comma >> y;
+        if (!(in >> x >> comma >> y) || comma != ',' || (in >> std::ws, !in.eof())) {
+            std::ostringstream err; err << "Invalid point format: " << line << "\n";
+            return err.str();
+        }
         gGraph.addPoint(Point{x, y});
-        std::ostringstream response;
-        response << "Point added: " << x << "," << y << "\n";
-        sendAll(fd, response.str());
+        return "Point added\n";
 
-    } else if (cmd == "RemovePoint") {
+    } else if (cmd == "Removepoint") {
         double x, y; char comma;
-        in >> x >> comma >> y;
+        if (!(in >> x >> comma >> y) || comma != ',' || (in >> std::ws, !in.eof())) {
+            std::ostringstream err; err << "Invalid point format: " << line << "\n";
+            return err.str();
+        }
         gGraph.removePoint(Point{x, y});
-        std::ostringstream response;
-        response << "Point removed: " << x << "," << y << "\n";
-        sendAll(fd, response.str());
+        return "Point removed\n";
 
-    } else if (cmd == "AddEdge") {
-        double x1, y1, x2, y2; char comma1, comma2;
-        in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
+    } else if (cmd == "Addedge") {
+        double x1, y1, x2, y2; char c1, c2;
+        if (!(in >> x1 >> c1 >> y1 >> x2 >> c2 >> y2) || c1 != ',' || c2 != ',' || (in >> std::ws, !in.eof())) {
+            std::ostringstream err; err << "Invalid edge format: " << line << "\n";
+            return err.str();
+        }
         gGraph.addEdge(Point{x1, y1}, Point{x2, y2});
-        std::ostringstream response;
-        response << "Edge added: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
-        sendAll(fd, response.str());
+        return "Edge added\n";
 
-    } else if (cmd == "RemoveEdge") {
-        double x1, y1, x2, y2; char comma1, comma2;
-        in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
+    } else if (cmd == "Removeedge") {
+        double x1, y1, x2, y2; char c1, c2;
+        if (!(in >> x1 >> c1 >> y1 >> x2 >> c2 >> y2) || c1 != ',' || c2 != ',' || (in >> std::ws, !in.eof())) {
+            std::ostringstream err; err << "Invalid edge format: " << line << "\n";
+            return err.str();
+        }
         gGraph.removeEdge(Point{x1, y1}, Point{x2, y2});
-        std::ostringstream response;
-        response << "Edge removed: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
-        sendAll(fd, response.str());
-
-    } else {
-        sendAll(fd, "Unknown command\n");
+        return "Edge removed\n";
     }
+
+    return "Unknown command\n";
 }
 
-void onAccept(int listenFd){
-    int clientSocket = accept(listenFd, nullptr, nullptr);
-    if (clientSocket < 0) {
-        std::cerr << "Error accepting client connection\n";
-        return;
+static void* onClientRead(int fd) {
+    ConnState& st = gConns[fd];
+    char buf[4096];
+    ssize_t n = recv(fd, buf, sizeof(buf), 0);
+    if (n <= 0) {
+        removeFdFromReactor(gReactor, fd);
+        close(fd);
+        gConns.erase(fd);
+        std::cout << "Client disconnected\n";
+        return nullptr;
     }
-    // Add the client socket to the reactor
-    addFdToReactor(gReactor, clientSocket, onClientReadable);
+
+    st.inbuf.append(buf, n);
+
+    // Process all complete lines
+    for (;;) {
+        std::string::size_type pos = st.inbuf.find('\n');
+        if (pos == std::string::npos) break;
+
+        std::string line = st.inbuf.substr(0, pos + 1);
+        st.inbuf.erase(0, pos + 1);
+
+        std::string reply = processLine(st, line);
+        if (!reply.empty()) {
+            sendAll(fd, reply);
+        }
+    }
+    return nullptr;
+}
+
+static void* onAccept(int fd) {
+    // Accept the new connection
+    int clientfd = accept(fd, nullptr, nullptr);
+    if (clientfd < 0) {
+        perror("accept");
+        return nullptr;
+    }
+
+    addFdToReactor(gReactor, clientfd, onClientRead);
+    gConns.emplace(clientfd, ConnState{});
+    std::cout << "Client connected\n";
+    return nullptr;
 }
 
 int main() {
-
+    signal(SIGPIPE, SIG_IGN);
     std::cout << "Starting Graph server on port " << PORT << "...\n";
 
     int listenfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (listenfd < 0) {
-        std::cerr << "Error creating socket\n";
-        return 1;  
-    }
-    sockaddr_in serverAddr;
+    if (listenfd < 0) { std::cerr << "Error creating socket\n"; return 1; }
+
+    int yes = 1;
+    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+    sockaddr_in serverAddr{};
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(PORT);
-    if (bind(listenfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+    if (bind(listenfd, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
         std::cerr << "Error binding socket\n";
         close(listenfd);
         return 1;
@@ -156,10 +200,22 @@ int main() {
         return 1;
     }
 
+    // fd_set master, readfds;
+    // FD_ZERO(&master);
+    // FD_SET(listenfd, &master);
+    // int fdmax = listenfd;
+
+
     gReactor = startReactor();
+    if(!gReactor) {
+        std::cerr << "Error starting reactor\n";
+        close(listenfd);
+        return 1;
+    }
+
     addFdToReactor(gReactor, listenfd, onAccept);
 
-    for(;;) pause(); // Keep the server running
+    while(!gStopFlag) pause(); 
 
     stopReactor(gReactor);
     close(listenfd);

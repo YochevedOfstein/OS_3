@@ -1,7 +1,7 @@
 #pragma once
 
 
-typedef void (*reactorFunc)(int fd);
+typedef void* (*reactorFunc)(int fd);
 
 typedef struct reactor reactor;
 
