@@ -1,17 +1,16 @@
 #include "reactor.hpp"
 #include <algorithm>
-#include <cmath>
-#include <vector>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/select.h>
+#include <new>
 #include <thread>
 #include <atomic>
+#include <vector>
+#include <unistd.h>
+#include <sys/select.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <iostream>
 #include <sys/socket.h>
-#include <pthread.h>
-#include <errno.h> 
+
 
 
 struct ProactorData {
@@ -23,7 +22,7 @@ static void* clientEntry(void* arg) {
     ProactorData* data = static_cast<ProactorData*>(arg);
     int sockfd = data->sockfd;
     proactorFunc func = data->func;
-    delete data;                         // matches new
+    delete data;                      
     (void)func(sockfd);                  // run user handler (may close fd)
     return nullptr;
 }
@@ -36,7 +35,7 @@ static void* acceptEntry(void* arg) {
     ProactorData* data = static_cast<ProactorData*>(arg);
     int listenSockfd   = data->sockfd;
     proactorFunc func  = data->func;
-    delete data;                         // matches new
+    delete data;     
 
     for (;;) {
         int clientSockfd = accept(listenSockfd, nullptr, nullptr);
@@ -79,93 +78,133 @@ int stopProactor(pthread_t tid) {
 
 
 
-// internal struct 
-struct reactor {
-    struct Watch { int fd; reactorFunc cb; };
-    std::vector<Watch> watches;
-    int wake_pipe[2];
-    std::thread loopThread;
-    std::atomic<bool> running;
+enum CmdType { CMD_ADD, CMD_RM, CMD_STOP };
+
+struct Cmd {
+    CmdType     t;
+    int         fd;
+    reactorFunc cb;
 };
 
-// the background loop: builds fd_set, calls select(), dispatches
+// ----- reactor internals -----
+struct reactor {
+    struct Watch { int fd; reactorFunc cb; };
+
+    std::vector<Watch> watches;   // mutated ONLY in reactor thread
+    int wake_pipe[2];             // [0]=read, [1]=write (both nonblocking)
+    std::thread loopThread;
+    std::atomic<bool> running;
+
+    reactor() : watches(), wake_pipe{-1,-1}, running(false) {}
+};
+
+// best-effort, nonblocking
+static void sendCmd(reactor* R, const Cmd& c) {
+    if (!R) return;
+    (void)!write(R->wake_pipe[1], &c, sizeof(c));
+}
+
+// read all queued commands and apply them (runs in reactor thread)
+static void drainAndApply(reactor* R) {
+    for (;;) {
+        Cmd c;
+        ssize_t n = read(R->wake_pipe[0], &c, sizeof(c));
+        if (n != (ssize_t)sizeof(c)) break; // pipe empty (or short read)
+        if (c.t == CMD_ADD) {
+            // update if exists, else push
+            std::vector<reactor::Watch>::iterator it =
+                std::find_if(R->watches.begin(), R->watches.end(),
+                    [&](const reactor::Watch& w){ return w.fd == c.fd; });
+            if (it != R->watches.end()) it->cb = c.cb;
+            else R->watches.push_back(reactor::Watch{c.fd, c.cb});
+        } else if (c.t == CMD_RM) {
+            R->watches.erase(
+                std::remove_if(R->watches.begin(), R->watches.end(),
+                    [&](const reactor::Watch& w){ return w.fd == c.fd; }),
+                R->watches.end());
+        } else if (c.t == CMD_STOP) {
+            R->running = false;
+        }
+    }
+}
+
 static void reactorLoop(reactor* R) {
     while (R->running.load()) {
-        fd_set rfds;
-        FD_ZERO(&rfds);
+        fd_set rfds; FD_ZERO(&rfds);
         int maxfd = -1;
-        for (auto &w : R->watches) {
-            FD_SET(w.fd, &rfds);
-            if (w.fd > maxfd) maxfd = w.fd;
+
+        // always watch the wake pipe
+        FD_SET(R->wake_pipe[0], &rfds);
+        if (R->wake_pipe[0] > maxfd) maxfd = R->wake_pipe[0];
+
+        // watch all registered fds
+        for (size_t i = 0; i < R->watches.size(); ++i) {
+            FD_SET(R->watches[i].fd, &rfds);
+            if (R->watches[i].fd > maxfd) maxfd = R->watches[i].fd;
         }
-        if (select(maxfd + 1, &rfds, nullptr, nullptr, nullptr) < 0)
-            continue;
-        for (auto &w : R->watches) {
-            if (FD_ISSET(w.fd, &rfds) && w.cb) {
-                w.cb(w.fd);
+
+        int rc = select(maxfd + 1, &rfds, NULL, NULL, NULL);
+        if (rc < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+
+        // first apply pending config changes
+        if (FD_ISSET(R->wake_pipe[0], &rfds)) {
+            drainAndApply(R);
+        }
+        if (!R->running.load()) break;
+
+        // now dispatch callbacks (changes take effect next loop)
+        for (size_t i = 0; i < R->watches.size(); ++i) {
+            reactorFunc cb = R->watches[i].cb;
+            int fd = R->watches[i].fd;
+            if (cb && FD_ISSET(fd, &rfds)) {
+                (void)cb(fd); // ignore returned void*
             }
         }
     }
 }
 
 void* startReactor() {
+    reactor* R = new (std::nothrow) reactor();
+    if (!R) return NULL;
 
-    reactor* R = nullptr;
-    try {
-        R = new reactor();
-    } catch (...) {
-        // catches all exceptions including bad_alloc
-        return nullptr;
+    if (pipe(R->wake_pipe) < 0) { delete R; return NULL; }
+
+    // make both ends nonblocking
+    for (int i = 0; i < 2; ++i) {
+        int flags = fcntl(R->wake_pipe[i], F_GETFL, 0);
+        fcntl(R->wake_pipe[i], F_SETFL, flags | O_NONBLOCK);
     }
 
-    R->watches = std::vector<reactor::Watch>();
-    R->wake_pipe[0] = R->wake_pipe[1] = 0;
-    R->loopThread = std::thread();
     R->running = true;
-
-    // create wake-up pipe
-    if (pipe(R->wake_pipe) < 0) {
-        delete R;
-        return nullptr;
-    }
-
-    R->watches.push_back({R->wake_pipe[0], nullptr});
     R->loopThread = std::thread(reactorLoop, R);
     return R;
 }
 
-int addFdToReactor(void* reactorPtr, int fd, reactorFunc func) {
-    if (!reactorPtr || fd < 0) return -1;
-    reactor* R = static_cast<reactor*>(reactorPtr);
-    R->watches.push_back({fd, func});
+int addFdToReactor(void* rp, int fd, reactorFunc func) {
+    if (!rp || fd < 0) return -1;
+    sendCmd(static_cast<reactor*>(rp), Cmd{CMD_ADD, fd, func});
     return 0;
 }
 
-int removeFdFromReactor(void* reactorPtr, int fd) {
-    if (!reactorPtr) return -1;
-    auto* R = static_cast<reactor*>(reactorPtr);
-    auto& v = R->watches;
-    auto it = std::remove_if(v.begin(), v.end(),
-        [fd](const reactor::Watch& w){ return w.fd == fd; });
-    if (it == v.end()) return -1;
-    v.erase(it, v.end());
+int removeFdFromReactor(void* rp, int fd) {
+    if (!rp) return -1;
+    sendCmd(static_cast<reactor*>(rp), Cmd{CMD_RM, fd, NULL});
     return 0;
 }
 
-int stopReactor(void* reactorPtr) {
-    if (!reactorPtr) return -1;
-    reactor* R = static_cast<reactor*>(reactorPtr);
-    // signal stop
-    R->running = false;
-    // wake select()
-    write(R->wake_pipe[1], "x", 1);
-    // join thread
-    if (R->loopThread.joinable())
-        R->loopThread.join();
-    // close pipes
-    close(R->wake_pipe[0]);
-    close(R->wake_pipe[1]);
-    // cleanup
+int stopReactor(void* rp) {
+    if (!rp) return -1;
+    reactor* R = static_cast<reactor*>(rp);
+
+    // tell loop to stop and join it
+    sendCmd(R, Cmd{CMD_STOP, -1, NULL});
+    if (R->loopThread.joinable()) R->loopThread.join();
+
+    if (R->wake_pipe[0] != -1) close(R->wake_pipe[0]);
+    if (R->wake_pipe[1] != -1) close(R->wake_pipe[1]);
     delete R;
     return 0;
 }
