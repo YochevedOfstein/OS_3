@@ -21,7 +21,7 @@ int main() {
         string cmd;
         in >> cmd;
 
-        if (cmd == "NewGraph") {
+        if (cmd == "Newgraph") {
             int n; in >> n;
             vector<Point> pts;
 
@@ -45,12 +45,12 @@ int main() {
                 cout << p.x << "," << p.y << std::endl;
             cout << "Area = " << area << std::endl;
 
-        } else if (cmd == "NewPoint") {
+        } else if (cmd == "Newpoint") {
             double x, y; char comma;
             in >> x >> comma >> y;
             graph.addPoint(Point{x, y});
 
-        } else if (cmd == "RemovePoint") {
+        } else if (cmd == "Removepoint") {
             double x, y; char comma;
             in >> x >> comma >> y;
             graph.removePoint(Point{x, y});

@@ -59,20 +59,7 @@ int main() {
     auto hull = convexHull(pts);
     double area = polygonArea(hull);
 
-    cout << "Area = " << area << "\n";
-
-    // while(cin >> n) {
-    //     if (n <= 0) break; // Exit on non-positive input
-    //     vector<Point> pts(n);
-    //     for (int i = 0; i < n; ++i) {
-    //         cin >> pts[i].x >> pts[i].y;
-    //     }
-    //     auto hull = convexHull(pts);
-    //     double area = polygonArea(hull);
-
-    //     cout << "Area = " << area << "\n";
-    // }
-
+    cout << area << "\n";
 
     return 0;
 }
