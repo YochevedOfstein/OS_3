@@ -12,13 +12,13 @@ Names: Lior Telman, Yocheved Ofstein
    - This README.md file
 
 ## Folder Map
-   - ***part_1*** — Point.hpp, basic Convex Hull (Monotone Chain) + area
-   - ***part_2*** — Same algo with 3 containers (vector/deque/list) + gprof profiling
-   - ***part_3*** — CLI program (stdin) with commands: NewGraph, NewPoint, RemovePoint, CH
-   - ***part_4*** — Server (blocking, single client at a time)
-   - ***part_5*** — Library: libreactor.a containing a reactor API
-   - ***part_6*** — Server using the reactor (I/O readiness)
-   - ***part_7*** — Thread-per-client server
-   - ***part_8*** — Proactor implementation (accept thread + per-client worker threads)
-   - ***part_9*** — Server from Part 7 rewritten on proactor
-   - ***part_10*** — Background monitor thread + condvar: prints when CH area crosses 100 up or down
+   - [part_1](part_1/) — `Point.hpp`, basic Convex Hull + polygon area
+   - [part_2](part_2/) — Same algo with 3 containers (*vector* / *deque* / *list*) + `gprof` profiling
+   - [part_3](part_3/) — CLI (stdin) with commands: `Newgraph`, `Newpoint`, `Removepoint`, `CH`
+   - [part_4](part_4/) — **Single-thread, multi-client** server using `select()`
+   - [part_5](part_5/) — Library: `libreactor.a` (reactor API for I/O readiness)
+   - [part_6](part_6/) — Server using the **reactor** (callbacks `onAccept` / `onClientRead`)
+   - [part_7](part_7/) — **Thread-per-client** server (blocking I/O; `std::mutex` guards `Graph`)
+   - [part_8](part_8/) — **Proactor** implementation (accept thread + per-client worker threads)
+   - [part_9](part_9/) — Part-7 server rewritten to **use the proactor** (`startProactor`, same handler)
+   - [part_10](part_10/) — Background **monitor** thread + `pthread_cond_t`: prints when CH area crosses **100** up or down (graceful shutdown wired)
