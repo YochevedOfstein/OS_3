@@ -21,4 +21,4 @@ Names: Lior Telman, Yocheved Ofstein
    - [part_7](part_7/) — **Thread-per-client** server (blocking I/O; `std::mutex` guards `Graph`)
    - [part_8](part_8/) — **Proactor** implementation (accept thread + per-client worker threads)
    - [part_9](part_9/) — Part-7 server rewritten to **use the proactor** (`startProactor`, same handler)
-   - [part_10](part_10/) — Background **monitor** thread + `pthread_cond_t`: prints when CH area crosses **100** up or down (graceful shutdown wired)
+   - [part_10](part_10/) — Prints when CH area crosses **100** up or down
