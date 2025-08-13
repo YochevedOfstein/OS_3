@@ -142,7 +142,10 @@ static void* handleClient(int clientSocket) {
 
             {
                 std::lock_guard<std::mutex> lock(graphMutex);
-                graph.addPoint(Point{x, y});
+                if (!graph.addPoint(Point{x, y})) {
+                    sendAll(clientSocket, "Failed to add point (duplicate)\n");
+                    continue;
+                }
             }
             std::ostringstream response;
             response << "Point added: " << x << "," << y << "\n";
@@ -158,7 +161,10 @@ static void* handleClient(int clientSocket) {
 
             {
                 std::lock_guard<std::mutex> lock(graphMutex);
-                graph.removePoint(Point{x, y});
+                if (!graph.removePoint(Point{x, y})) {
+                    sendAll(clientSocket, "Failed to remove point (not found)\n");
+                    continue;
+                }
             }
             std::ostringstream response;
             response << "Point removed: " << x << "," << y << "\n";
@@ -170,7 +176,10 @@ static void* handleClient(int clientSocket) {
             in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
             {
                 std::lock_guard<std::mutex> lock(graphMutex);
-                 graph.addEdge(Point{x1, y1}, Point{x2, y2});
+                if (!graph.addEdge(Point{x1, y1}, Point{x2, y2})) {
+                    sendAll(clientSocket, "Failed to add edge (duplicate)\n");
+                    continue;
+                }
             }
             std::ostringstream response;
             response << "Edge added: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";
@@ -181,7 +190,10 @@ static void* handleClient(int clientSocket) {
             in >> x1 >> comma1 >> y1 >> x2 >> comma2 >> y2;
             {
                 std::lock_guard<std::mutex> lock(graphMutex);
-                graph.removeEdge(Point{x1, y1}, Point{x2, y2});
+                if (!graph.removeEdge(Point{x1, y1}, Point{x2, y2})) {
+                    sendAll(clientSocket, "Failed to remove edge (not found)\n");
+                    continue;
+                }
             }
             std::ostringstream response;
             response << "Edge removed: (" << x1 << "," << y1 << ") - (" << x2 << "," << y2 << ")\n";

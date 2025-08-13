@@ -6,12 +6,20 @@ void Graph::newGraph(const std::vector<Point>& points) {
     points_ = points;
 }
 
-void Graph::addPoint(const Point& p) {
+bool Graph::addPoint(const Point& p) {
+    if (hasPoint(p)) {
+        return false;
+    }
     points_.push_back(p);
+    return true;
 }
 
-void Graph::removePoint(const Point& p) {
+bool Graph::removePoint(const Point& p) {
+    if (!hasPoint(p)) {
+        return false;
+    }
     points_.erase(std::remove(points_.begin(), points_.end(), p), points_.end());
+    return true;
 }
 
 std::vector<Point> Graph::convexHull() const {
@@ -55,4 +63,8 @@ double Graph::ComputeArea(const std::vector<Point>& P) const {
         area += P[i].x * P[j].y - P[j].x * P[i].y;
     }
     return fabs(area) * 0.5;
+}
+
+bool Graph::hasPoint(const Point& p) const {
+    return std::find(points_.begin(), points_.end(), p) != points_.end();
 }

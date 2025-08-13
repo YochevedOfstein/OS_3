@@ -48,12 +48,24 @@ int main() {
         } else if (cmd == "Newpoint") {
             double x, y; char comma;
             in >> x >> comma >> y;
-            graph.addPoint(Point{x, y});
+            if (comma != ',') {
+                cerr << "Invalid point format: " << line << "\n";
+                continue;
+            }
+            if (!graph.addPoint(Point{x, y})) {
+                cerr << "Failed to add point (duplicate)\n";
+            }
 
         } else if (cmd == "Removepoint") {
             double x, y; char comma;
             in >> x >> comma >> y;
-            graph.removePoint(Point{x, y});
+            if (comma != ',') {
+                cerr << "Invalid point format: " << line << "\n";
+                continue;
+            }
+            if (!graph.removePoint(Point{x, y})) {
+                cerr << "Failed to remove point (not found)\n";
+            }
 
         } else {
             cerr << "Unknown command: " << cmd << "\n";

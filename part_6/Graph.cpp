@@ -6,24 +6,47 @@ void Graph::newGraph(const std::vector<Point>& points) {
     points_ = points;
 }
 
-void Graph::addPoint(const Point& p) {
+bool Graph::addPoint(const Point& p) {
+    if (hasPoint(p)) {
+        return false;
+    }
     points_.push_back(p);
+    return true;
 }
 
-void Graph::removePoint(const Point& p) {
-    points_.erase(std::remove(points_.begin(), points_.end(), p), points_.end());
+bool Graph::removePoint(const Point& p) {
+    auto it = std::remove(points_.begin(), points_.end(), p);
+    if (it == points_.end()) {
+        return false;
+    }
+    points_.erase(it, points_.end());
+    return true;
 }
 
-void Graph::addEdge(const Point& p1, const Point& p2) {
+bool Graph::addEdge(const Point& p1, const Point& p2) {
+    if(p1 == p2) {
+        return false; // No self-loops allowed
+    }
+    if (!hasPoint(p1) || !hasPoint(p2)) {
+        return false;
+    }
     auto e = std::make_pair(p1, p2);
     if (std::find(edges_.begin(), edges_.end(), e) == edges_.end()) {
         edges_.push_back(e);
     }
+    return true;
 }
 
-void Graph::removeEdge(const Point& p1, const Point& p2) {
+bool Graph::removeEdge(const Point& p1, const Point& p2) {
+    if(p1 == p2) {
+        return false; // No self-loops allowed
+    }
+    if (!hasPoint(p1) || !hasPoint(p2)) {
+        return false;
+    }
     auto e = std::make_pair(p1, p2);
     edges_.erase(std::remove(edges_.begin(), edges_.end(), e), edges_.end());
+    return true;
 }
 
 std::vector<Point> Graph::convexHull() const {
@@ -67,4 +90,8 @@ double Graph::ComputeArea(const std::vector<Point>& P) const {
         area += P[i].x * P[j].y - P[j].x * P[i].y;
     }
     return fabs(area) * 0.5;
+}
+
+bool Graph::hasPoint(const Point& p) const {
+    return std::find(points_.begin(), points_.end(), p) != points_.end();
 }

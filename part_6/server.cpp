@@ -96,7 +96,9 @@ static std::string processLine(ConnState& st, const std::string& rawLine) {
             std::ostringstream err; err << "Invalid point format: " << line << "\n";
             return err.str();
         }
-        gGraph.addPoint(Point{x, y});
+        if (!gGraph.addPoint(Point{x, y})) {
+            return "Failed to add point (duplicate)\n";
+        }
         return "Point added\n";
 
     } else if (cmd == "Removepoint") {
@@ -105,7 +107,9 @@ static std::string processLine(ConnState& st, const std::string& rawLine) {
             std::ostringstream err; err << "Invalid point format: " << line << "\n";
             return err.str();
         }
-        gGraph.removePoint(Point{x, y});
+        if (!gGraph.removePoint(Point{x, y})) {
+            return "Failed to remove point (not found)\n";
+        }
         return "Point removed\n";
 
     } else if (cmd == "Addedge") {
@@ -114,7 +118,9 @@ static std::string processLine(ConnState& st, const std::string& rawLine) {
             std::ostringstream err; err << "Invalid edge format: " << line << "\n";
             return err.str();
         }
-        gGraph.addEdge(Point{x1, y1}, Point{x2, y2});
+        if (!gGraph.addEdge(Point{x1, y1}, Point{x2, y2})) {
+            return "Failed to add edge\n";
+        }
         return "Edge added\n";
 
     } else if (cmd == "Removeedge") {
@@ -123,7 +129,9 @@ static std::string processLine(ConnState& st, const std::string& rawLine) {
             std::ostringstream err; err << "Invalid edge format: " << line << "\n";
             return err.str();
         }
-        gGraph.removeEdge(Point{x1, y1}, Point{x2, y2});
+        if (!gGraph.removeEdge(Point{x1, y1}, Point{x2, y2})) {
+            return "Failed to remove edge\n";
+        }
         return "Edge removed\n";
     }
 
