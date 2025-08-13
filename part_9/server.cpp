@@ -10,11 +10,17 @@
 #include <unistd.h>
 #include <mutex>
 #include <thread>
+#include <signal.h>
 
 static constexpr int PORT = 9034;
 
 Graph graph;
 std::mutex graphMutex;
+
+static volatile sig_atomic_t gStopFlag = 0;
+static void on_stop(int) {
+    gStopFlag = 1;
+}
 
 bool recvLine(int fd, std::string& line) {
     line.clear();
@@ -168,6 +174,11 @@ static void* handleClient(int clientSocket) {
 }
 
 int main() {
+    signal(SIGPIPE, SIG_IGN);
+    struct sigaction sa;
+    sa.sa_handler = on_stop;
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
 
     std::cout << "Starting Graph server on port " << PORT << "...\n";
 
@@ -180,6 +191,10 @@ int main() {
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(PORT);
+
+    int yes = 1;
+    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
     if (bind(listenfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
         std::cerr << "Error binding socket\n";
         close(listenfd);
@@ -200,7 +215,9 @@ int main() {
     }
 
     pause();
+    std::cout << "Shutting down proactor...\n";
     stopProactor(acceptTid);
+    std::cout << "Proactor stopped\n";
     close(listenfd);
     return 0;
 

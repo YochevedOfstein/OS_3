@@ -25,6 +25,9 @@ static void* gReactor = nullptr;
 static std::map<int, ConnState> gConns;
 
 static volatile sig_atomic_t gStopFlag = 0;
+static void on_stop(int) {
+    gStopFlag = 1;
+}
 
 
 void sendAll(int fd, const std::string& message) {
@@ -184,6 +187,11 @@ static void* onAccept(int fd) {
 
 int main() {
     signal(SIGPIPE, SIG_IGN);
+    struct sigaction sa;
+    sa.sa_handler = on_stop;
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
+
     std::cout << "Starting Graph server on port " << PORT << "...\n";
 
     int listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -219,7 +227,9 @@ int main() {
 
     while(!gStopFlag) pause(); 
 
+    std::cout << "Shutting down reactor...\n";
     stopReactor(gReactor);
+    std::cout << "Reactor stopped\n";
     close(listenfd);
     return 0;
 }

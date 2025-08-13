@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <mutex>
 #include <thread>
+#include <signal.h>
 
 static constexpr int PORT = 9034;
 
@@ -166,6 +167,7 @@ void handleClient(int clientSocket) {
 }
 
 int main() {
+    signal(SIGPIPE, SIG_IGN);
 
     std::cout << "Starting Graph server on port " << PORT << "...\n";
 
@@ -178,6 +180,10 @@ int main() {
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(PORT);
+
+    int yes = 1;
+    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
     if (bind(listenfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
         std::cerr << "Error binding socket\n";
         close(listenfd);
