@@ -45,7 +45,6 @@ bool recvAndPrint(int sock) {
 }
 
 int main() {
-    // 1) connect
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) { perror("socket"); return 1; }
 

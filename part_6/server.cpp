@@ -200,12 +200,6 @@ int main() {
         return 1;
     }
 
-    // fd_set master, readfds;
-    // FD_ZERO(&master);
-    // FD_SET(listenfd, &master);
-    // int fdmax = listenfd;
-
-
     gReactor = startReactor();
     if(!gReactor) {
         std::cerr << "Error starting reactor\n";

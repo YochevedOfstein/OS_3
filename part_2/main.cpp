@@ -137,7 +137,6 @@ int main() {
     // Compute area once (they should match)
     double area = polygonArea(hull1);
 
-    // Report
     cout << "Area = " << area << "\n";
     
     double dt1 = chrono::duration<double, milli>(t2 - t1).count();

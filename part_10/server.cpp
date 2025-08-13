@@ -231,19 +231,19 @@ int main() {
         return 1;
     }
 
-    for(;;){
-        pause(); // Wait indefinitely
+    while(!gShuttingDown) {
+        pause();
     }
 
-    // pthread_mutex_lock(&gMonMtx);
-    // gShuttingDown = true;
-    // pthread_cond_signal(&gMonCv);
-    // pthread_mutex_unlock(&gMonMtx);
+    pthread_mutex_lock(&gMonMtx);
+    gShuttingDown = true;
+    pthread_cond_signal(&gMonCv);
+    pthread_mutex_unlock(&gMonMtx);
 
-    // stopProactor(acceptTid);
-    // pthread_join(monTid, nullptr);
-    // pause();
-    // close(listenfd);
-    // return 0;
+    stopProactor(acceptTid);
+    pthread_join(monTid, nullptr);
+    pause();
+    close(listenfd);
+    return 0;
 
 }

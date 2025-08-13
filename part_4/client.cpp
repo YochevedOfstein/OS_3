@@ -53,7 +53,6 @@ int main(){
     std::string line;
     while (std::getline(std::cin,line)){
         if (line.empty()) continue;
-        // send header
         if (!sendLine(sock,line)) break;
 
         // if NewGraph, read & send the next n point‐lines

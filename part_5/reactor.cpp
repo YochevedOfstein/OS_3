@@ -9,7 +9,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-// ----- command sent through the wake pipe -----
+// command sent through the wake pipe
 enum CmdType { CMD_ADD, CMD_RM, CMD_STOP };
 
 struct Cmd {
@@ -18,7 +18,6 @@ struct Cmd {
     reactorFunc cb;
 };
 
-// ----- reactor internals -----
 struct reactor {
     struct Watch { int fd; reactorFunc cb; };
 
@@ -60,7 +59,6 @@ static void drainAndApply(reactor* R) {
     }
 }
 
-// main loop
 static void reactorLoop(reactor* R) {
     while (R->running.load()) {
         fd_set rfds; FD_ZERO(&rfds);

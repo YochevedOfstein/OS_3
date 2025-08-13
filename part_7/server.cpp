@@ -189,4 +189,7 @@ int main() {
         t.detach(); // Detach the thread to handle the client independently
     }
 
+    close(listenfd);
+    return 0;
+
 }
