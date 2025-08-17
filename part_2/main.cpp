@@ -136,6 +136,12 @@ int main() {
 
     // Compute area once (they should match)
     double area = polygonArea(hull1);
+    double area2 = polygonArea(hull2);
+    double area3 = polygonArea(hull);
+
+    if (area != area2 || area != area3 || area2 != area3) {
+        cerr << "Warning: Convex hull areas do not match!" << endl;
+    }
 
     cout << "Area = " << area << "\n";
     
